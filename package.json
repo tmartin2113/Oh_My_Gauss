@@ -1,10 +1,18 @@
 {
   "name": "oh-my-gauss",
   "version": "1.0.0",
-  "description": "A RAG-based science tutor that scrapes science websites and answers questions using Claude",
+  "description": "MCP server that gives Claude access to science knowledge — searches research papers, scrapes science news, and builds a local RAG knowledge base",
   "type": "module",
+  "bin": {
+    "oh-my-gauss": "dist/mcp/bin.js"
+  },
+  "main": "dist/mcp/bin.js",
+  "files": [
+    "dist/"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs=require('fs'); const f='dist/mcp/bin.js'; const c=fs.readFileSync(f,'utf8'); if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c); fs.chmodSync(f,0o755)\"",
+    "prepublishOnly": "npm run build",
     "scrape": "tsx src/index.ts scrape",
     "papers": "tsx src/index.ts papers",
     "chat": "tsx src/index.ts chat",
@@ -12,6 +20,19 @@
     "mcp:http": "tsx src/mcp/server.ts",
     "cron:daily": "tsx src/cron/daily.ts"
   },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "claude",
+    "science",
+    "research",
+    "arxiv",
+    "semantic-scholar",
+    "rag",
+    "knowledge-base",
+    "tutor"
+  ],
+  "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@mendable/firecrawl-js": "^1.19.0",
