@@ -5,26 +5,44 @@ import { scrapeAllSources } from "./scraper/firecrawl.js";
 import { chunkArticles } from "./scraper/chunker.js";
 import { addDocuments, getCollectionStats } from "./vectorstore/chroma.js";
 import { askTutor, ConversationMessage } from "./tutor/chat.js";
+import { SEMANTIC_SCHOLAR_QUERIES, searchAllPaperQueries } from "./scraper/semanticscholar.js";
+import { ARXIV_QUERIES, searchAllArxivQueries } from "./scraper/arxiv.js";
 
 async function runScrape(): Promise<void> {
   console.log("=== Oh My Gauss — Science Scraper ===\n");
+
+  // Phase 1: Free APIs first (no tokens/credits used)
+  console.log("Phase 1: Research papers (free APIs)\n");
+
+  console.log("[Semantic Scholar]");
+  const s2Articles = await searchAllPaperQueries(SEMANTIC_SCHOLAR_QUERIES);
+  console.log(`  Total from Semantic Scholar: ${s2Articles.length}\n`);
+
+  console.log("[arXiv]");
+  const arxivArticles = await searchAllArxivQueries(ARXIV_QUERIES);
+  console.log(`  Total from arXiv: ${arxivArticles.length}\n`);
+
+  const paperChunks = chunkArticles([...s2Articles, ...arxivArticles]);
+  if (paperChunks.length > 0) {
+    console.log(`Storing ${paperChunks.length} paper chunks in ChromaDB...\n`);
+    await addDocuments(paperChunks);
+  }
+
+  // Phase 2: Firecrawl (uses credits)
+  console.log("Phase 2: Science websites (Firecrawl — uses credits)\n");
   console.log(`Scraping ${SCIENCE_SOURCES.length} sources...\n`);
 
   const articles = await scrapeAllSources(SCIENCE_SOURCES);
   console.log(`\nTotal articles scraped: ${articles.length}\n`);
 
-  if (articles.length === 0) {
-    console.log("No articles found. Check your FIRECRAWL_API_KEY and sources.");
-    return;
+  if (articles.length > 0) {
+    const webChunks = chunkArticles(articles);
+    console.log(`Storing ${webChunks.length} web article chunks in ChromaDB...\n`);
+    await addDocuments(webChunks);
   }
 
-  const chunks = chunkArticles(articles);
-  console.log(`\nStoring ${chunks.length} chunks in ChromaDB...\n`);
-
-  await addDocuments(chunks);
-
   const stats = await getCollectionStats();
-  console.log(`\nDone! ChromaDB now has ${stats.count} documents.`);
+  console.log(`\nDone! ChromaDB now has ${stats.count} documents total.`);
 }
 
 async function runChat(): Promise<void> {
@@ -99,15 +117,44 @@ async function runChat(): Promise<void> {
   askQuestion();
 }
 
+async function runPapersOnly(): Promise<void> {
+  console.log("=== Oh My Gauss — Research Paper Scraper (Free) ===\n");
+
+  console.log("[Semantic Scholar]");
+  const s2Articles = await searchAllPaperQueries(SEMANTIC_SCHOLAR_QUERIES);
+  console.log(`  Total from Semantic Scholar: ${s2Articles.length}\n`);
+
+  console.log("[arXiv]");
+  const arxivArticles = await searchAllArxivQueries(ARXIV_QUERIES);
+  console.log(`  Total from arXiv: ${arxivArticles.length}\n`);
+
+  const allArticles = [...s2Articles, ...arxivArticles];
+  if (allArticles.length === 0) {
+    console.log("No papers found.");
+    return;
+  }
+
+  const chunks = chunkArticles(allArticles);
+  console.log(`Storing ${chunks.length} paper chunks in ChromaDB...\n`);
+  await addDocuments(chunks);
+
+  const stats = await getCollectionStats();
+  console.log(`\nDone! ChromaDB now has ${stats.count} documents total.`);
+}
+
 const mode = process.argv[2];
 
 if (mode === "scrape") {
   runScrape().catch(console.error);
+} else if (mode === "papers") {
+  runPapersOnly().catch(console.error);
 } else if (mode === "chat") {
   runChat().catch(console.error);
 } else {
   console.log("Oh My Gauss — Science Tutor\n");
   console.log("Usage:");
-  console.log("  npm run scrape   Scrape science websites and build knowledge base");
+  console.log("  npm run papers   Fetch research papers only (free, no API credits)");
+  console.log("  npm run scrape   Fetch papers + scrape websites (uses Firecrawl credits)");
   console.log("  npm run chat     Start interactive science tutor chatbot");
+  console.log("  npm run mcp      Start MCP server for Claude integration");
 }

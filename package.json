@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "scrape": "tsx src/index.ts scrape",
+    "papers": "tsx src/index.ts papers",
     "chat": "tsx src/index.ts chat",
     "mcp": "tsx src/mcp/server.ts"
   },

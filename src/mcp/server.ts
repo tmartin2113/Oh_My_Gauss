@@ -8,6 +8,8 @@ import { queryRelevant, addDocuments, getCollectionStats } from "../vectorstore/
 import { scrapeSource } from "../scraper/firecrawl.js";
 import { chunkArticles } from "../scraper/chunker.js";
 import { SCIENCE_SOURCES } from "../scraper/sources.js";
+import { searchPapers } from "../scraper/semanticscholar.js";
+import { searchArxiv } from "../scraper/arxiv.js";
 
 const server = new McpServer({
   name: "oh-my-gauss",
@@ -219,6 +221,99 @@ server.registerTool(
         },
       ],
     };
+  }
+);
+
+// Tool 4: Search research papers (free APIs — no credits used)
+server.registerTool(
+  "search_papers",
+  {
+    title: "Search Research Papers",
+    description:
+      "Search academic research papers via Semantic Scholar and arXiv APIs (free, no credits). Results are added to the knowledge base.",
+    inputSchema: {
+      query: z.string().describe("Search query for research papers"),
+      source: z
+        .enum(["semantic_scholar", "arxiv", "both"])
+        .default("both")
+        .describe("Which paper source to search (default: both)"),
+      field: z
+        .enum(["physics", "biology", "chemistry", "earth_science", "general"])
+        .default("general")
+        .describe("Science field for categorization"),
+      max_results: z
+        .number()
+        .min(1)
+        .max(50)
+        .default(10)
+        .describe("Maximum papers to fetch (default: 10)"),
+      arxiv_category: z
+        .string()
+        .optional()
+        .describe("Optional arXiv category filter (e.g. quant-ph, astro-ph, q-bio, cond-mat)"),
+    },
+  },
+  async ({ query, source, field, max_results, arxiv_category }) => {
+    try {
+      const allArticles = [];
+
+      if (source === "semantic_scholar" || source === "both") {
+        const s2Articles = await searchPapers({
+          query,
+          field,
+          maxResults: max_results,
+        });
+        allArticles.push(...s2Articles);
+      }
+
+      if (source === "arxiv" || source === "both") {
+        const arxivArticles = await searchArxiv({
+          searchQuery: query,
+          field,
+          maxResults: max_results,
+          category: arxiv_category,
+        });
+        allArticles.push(...arxivArticles);
+      }
+
+      if (allArticles.length === 0) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `No papers found for "${query}". Try different search terms.`,
+            },
+          ],
+        };
+      }
+
+      const chunks = chunkArticles(allArticles);
+      await addDocuments(chunks);
+
+      const summaries = allArticles
+        .slice(0, 5)
+        .map((a, i) => `${i + 1}. "${a.title}" (${a.sourceName}) — ${a.url}`)
+        .join("\n");
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Found ${allArticles.length} papers, stored ${chunks.length} chunks.\n\nTop results:\n${summaries}${allArticles.length > 5 ? `\n... and ${allArticles.length - 5} more` : ""}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Error searching papers: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
   }
 );
 
