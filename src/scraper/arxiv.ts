@@ -7,15 +7,38 @@ export interface ArxivQuery {
   field: string;
   maxResults?: number;
   category?: string;
+  submittedDateRange?: { from: string; to: string }; // format: YYYYMMDDTTTT (GMT)
 }
 
 export const ARXIV_QUERIES: ArxivQuery[] = [
+  // Nanotechnology
+  { searchQuery: "nanotechnology nanomaterials", field: "nanotechnology", category: "cond-mat.mtrl-sci", maxResults: 10 },
+
+  // Physics
   { searchQuery: "quantum computing", field: "physics", category: "quant-ph", maxResults: 15 },
   { searchQuery: "general relativity", field: "physics", category: "gr-qc", maxResults: 10 },
   { searchQuery: "condensed matter", field: "physics", category: "cond-mat", maxResults: 10 },
-  { searchQuery: "machine learning physics", field: "physics", category: "physics", maxResults: 10 },
-  { searchQuery: "computational biology", field: "biology", category: "q-bio", maxResults: 15 },
-  { searchQuery: "astrophysics cosmology", field: "physics", category: "astro-ph", maxResults: 10 },
+  { searchQuery: "high energy physics", field: "physics", category: "hep-ph", maxResults: 10 },
+
+  // Earth
+  { searchQuery: "earth science geophysics climate", field: "earth", category: "physics.geo-ph", maxResults: 10 },
+  { searchQuery: "atmospheric science", field: "earth", category: "physics.ao-ph", maxResults: 10 },
+
+  // Astronomy & Space
+  { searchQuery: "astrophysics cosmology", field: "astronomy_space", category: "astro-ph", maxResults: 15 },
+  { searchQuery: "exoplanets stellar evolution", field: "astronomy_space", category: "astro-ph.EP", maxResults: 10 },
+  { searchQuery: "gravitational waves", field: "astronomy_space", category: "gr-qc", maxResults: 10 },
+
+  // Chemistry
+  { searchQuery: "chemical physics molecular", field: "chemistry", category: "physics.chem-ph", maxResults: 10 },
+
+  // Biology
+  { searchQuery: "computational biology genomics", field: "biology", category: "q-bio", maxResults: 15 },
+  { searchQuery: "biophysics molecular biology", field: "biology", category: "q-bio.BM", maxResults: 10 },
+
+  // Materials Science
+  { searchQuery: "materials science", field: "materials_science", category: "cond-mat.mtrl-sci", maxResults: 15 },
+  { searchQuery: "superconductivity topological materials", field: "materials_science", category: "cond-mat.supr-con", maxResults: 10 },
 ];
 
 function parseAtomXml(xml: string): Array<{
@@ -79,9 +102,14 @@ export async function searchArxiv(
   query: ArxivQuery
 ): Promise<ScrapedArticle[]> {
   const maxResults = query.maxResults || 15;
-  const searchTerms = query.category
+
+  let searchTerms = query.category
     ? `cat:${query.category}+AND+all:${encodeURIComponent(query.searchQuery)}`
     : `all:${encodeURIComponent(query.searchQuery)}`;
+
+  if (query.submittedDateRange) {
+    searchTerms += `+AND+submittedDate:[${query.submittedDateRange.from}+TO+${query.submittedDateRange.to}]`;
+  }
 
   const url = `${BASE_URL}?search_query=${searchTerms}&start=0&max_results=${maxResults}&sortBy=submittedDate&sortOrder=descending`;
 

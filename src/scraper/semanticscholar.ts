@@ -7,6 +7,7 @@ export interface SemanticScholarQuery {
   query: string;
   field: string;
   maxResults?: number;
+  publicationDateRange?: string; // e.g. "2026-03-15:2026-03-16" for last 24h
 }
 
 interface S2Paper {
@@ -28,14 +29,36 @@ interface S2SearchResponse {
 }
 
 export const SEMANTIC_SCHOLAR_QUERIES: SemanticScholarQuery[] = [
-  { query: "quantum mechanics recent discoveries", field: "physics", maxResults: 20 },
-  { query: "astrophysics black holes neutron stars", field: "physics", maxResults: 15 },
-  { query: "molecular biology gene editing CRISPR", field: "biology", maxResults: 20 },
-  { query: "organic chemistry catalysis synthesis", field: "chemistry", maxResults: 15 },
-  { query: "climate change earth systems geology", field: "earth_science", maxResults: 15 },
-  { query: "neuroscience brain cognition", field: "biology", maxResults: 15 },
+  // Nanotechnology
+  { query: "nanotechnology nanomaterials nanoparticles", field: "nanotechnology", maxResults: 15 },
+  { query: "carbon nanotubes graphene nanoscale", field: "nanotechnology", maxResults: 10 },
+
+  // Physics
+  { query: "quantum mechanics recent discoveries", field: "physics", maxResults: 15 },
   { query: "particle physics standard model", field: "physics", maxResults: 10 },
-  { query: "materials science nanotechnology", field: "chemistry", maxResults: 10 },
+  { query: "condensed matter superconductivity", field: "physics", maxResults: 10 },
+
+  // Earth
+  { query: "climate change earth systems geology", field: "earth", maxResults: 15 },
+  { query: "seismology plate tectonics volcanology", field: "earth", maxResults: 10 },
+
+  // Astronomy & Space
+  { query: "astrophysics black holes neutron stars", field: "astronomy_space", maxResults: 15 },
+  { query: "exoplanets cosmology dark matter dark energy", field: "astronomy_space", maxResults: 15 },
+  { query: "gravitational waves space exploration", field: "astronomy_space", maxResults: 10 },
+
+  // Chemistry
+  { query: "organic chemistry catalysis synthesis", field: "chemistry", maxResults: 15 },
+  { query: "computational chemistry molecular dynamics", field: "chemistry", maxResults: 10 },
+
+  // Materials Science
+  { query: "materials science polymers ceramics composites", field: "materials_science", maxResults: 15 },
+  { query: "semiconductor materials photovoltaics", field: "materials_science", maxResults: 10 },
+
+  // Biology
+  { query: "molecular biology gene editing CRISPR", field: "biology", maxResults: 15 },
+  { query: "neuroscience brain cognition", field: "biology", maxResults: 10 },
+  { query: "evolutionary biology ecology biodiversity", field: "biology", maxResults: 10 },
 ];
 
 async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
@@ -63,7 +86,10 @@ export async function searchPapers(
   query: SemanticScholarQuery
 ): Promise<ScrapedArticle[]> {
   const maxResults = query.maxResults || 20;
-  const url = `${BASE_URL}/paper/search?query=${encodeURIComponent(query.query)}&limit=${maxResults}&fields=${FIELDS}`;
+  let url = `${BASE_URL}/paper/search/bulk?query=${encodeURIComponent(query.query)}&limit=${maxResults}&fields=${FIELDS}`;
+  if (query.publicationDateRange) {
+    url += `&publicationDateOrYear=${encodeURIComponent(query.publicationDateRange)}`;
+  }
 
   console.log(`  Searching Semantic Scholar: "${query.query}"...`);
 

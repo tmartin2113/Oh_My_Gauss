@@ -7,7 +7,7 @@ import { z } from "zod";
 import { queryRelevant, addDocuments, getCollectionStats } from "../vectorstore/chroma.js";
 import { scrapeSource } from "../scraper/firecrawl.js";
 import { chunkArticles } from "../scraper/chunker.js";
-import { SCIENCE_SOURCES } from "../scraper/sources.js";
+import { SCIENCE_SOURCES, SCIENCE_FIELDS } from "../scraper/sources.js";
 import { searchPapers } from "../scraper/semanticscholar.js";
 import { searchArxiv } from "../scraper/arxiv.js";
 
@@ -26,7 +26,7 @@ server.registerTool(
     inputSchema: {
       question: z.string().describe("The science question or topic to search for"),
       field: z
-        .enum(["physics", "biology", "chemistry", "earth_science", "general"])
+        .enum(SCIENCE_FIELDS)
         .optional()
         .describe("Optional: filter by science field"),
       num_results: z
@@ -96,7 +96,7 @@ server.registerTool(
         .optional()
         .describe("A custom URL to scrape (if not using a preconfigured source)"),
       custom_field: z
-        .enum(["physics", "biology", "chemistry", "earth_science", "general"])
+        .enum(SCIENCE_FIELDS)
         .optional()
         .describe("Science field for the custom URL (required if using custom_url)"),
       max_pages: z
@@ -132,7 +132,7 @@ server.registerTool(
         source = {
           name: `Custom: ${custom_url}`,
           url: custom_url,
-          field: custom_field || "general",
+          field: custom_field || "physics",
           maxPages: max_pages,
         };
       } else {
@@ -238,8 +238,8 @@ server.registerTool(
         .default("both")
         .describe("Which paper source to search (default: both)"),
       field: z
-        .enum(["physics", "biology", "chemistry", "earth_science", "general"])
-        .default("general")
+        .enum(SCIENCE_FIELDS)
+        .default("physics")
         .describe("Science field for categorization"),
       max_results: z
         .number()
