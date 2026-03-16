@@ -85,6 +85,28 @@ All optional. Set via environment variables or a `.env` file.
 | `MCP_PORT` | `3100` | Port for HTTP transport mode |
 | `CRON_FIELDS` | all fields | Comma-separated fields for daily cron |
 
+## Platform Support
+
+Works on **Linux, macOS, and Windows** — everything is pure JavaScript and HTTP calls, no native binaries.
+
+| Component | Linux | macOS | Windows |
+|-----------|:-----:|:-----:|:-------:|
+| Local vector store (JSON file) | Yes | Yes | Yes |
+| Local embeddings (@xenova/transformers) | Yes | Yes | Yes |
+| Semantic Scholar / arXiv APIs | Yes | Yes | Yes |
+| Firecrawl API | Yes | Yes | Yes |
+| stdio MCP transport | Yes | Yes | Yes |
+
+**Only requirement:** Node.js 18+
+
+### Claude Desktop config location
+
+| OS | Path |
+|----|------|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
 ## How It Works
 
 ```
