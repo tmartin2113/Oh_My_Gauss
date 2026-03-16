@@ -7,6 +7,7 @@ import { addDocuments, getCollectionStats } from "./vectorstore/index.js";
 import { askTutor, ConversationMessage } from "./tutor/chat.js";
 import { SEMANTIC_SCHOLAR_QUERIES, searchAllPaperQueries } from "./scraper/semanticscholar.js";
 import { ARXIV_QUERIES, searchAllArxivQueries } from "./scraper/arxiv.js";
+import { BIORXIV_QUERIES, searchAllBioRxivQueries } from "./scraper/biorxiv.js";
 
 async function runScrape(): Promise<void> {
   console.log("=== Oh My Gauss — Science Scraper ===\n");
@@ -22,7 +23,11 @@ async function runScrape(): Promise<void> {
   const arxivArticles = await searchAllArxivQueries(ARXIV_QUERIES);
   console.log(`  Total from arXiv: ${arxivArticles.length}\n`);
 
-  const paperChunks = chunkArticles([...s2Articles, ...arxivArticles]);
+  console.log("[bioRxiv]");
+  const biorxivArticles = await searchAllBioRxivQueries(BIORXIV_QUERIES);
+  console.log(`  Total from bioRxiv: ${biorxivArticles.length}\n`);
+
+  const paperChunks = chunkArticles([...s2Articles, ...arxivArticles, ...biorxivArticles]);
   if (paperChunks.length > 0) {
     console.log(`Storing ${paperChunks.length} paper chunks in ChromaDB...\n`);
     await addDocuments(paperChunks);
@@ -128,7 +133,11 @@ async function runPapersOnly(): Promise<void> {
   const arxivArticles = await searchAllArxivQueries(ARXIV_QUERIES);
   console.log(`  Total from arXiv: ${arxivArticles.length}\n`);
 
-  const allArticles = [...s2Articles, ...arxivArticles];
+  console.log("[bioRxiv]");
+  const biorxivArticles = await searchAllBioRxivQueries(BIORXIV_QUERIES);
+  console.log(`  Total from bioRxiv: ${biorxivArticles.length}\n`);
+
+  const allArticles = [...s2Articles, ...arxivArticles, ...biorxivArticles];
   if (allArticles.length === 0) {
     console.log("No papers found.");
     return;

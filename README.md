@@ -34,7 +34,7 @@ Restart Claude, and you'll have 4 new science tools available.
 ## Tools
 
 ### `search_papers`
-Search academic papers via Semantic Scholar and arXiv APIs. **Free — no API key needed.**
+Search academic papers via Semantic Scholar, arXiv, and bioRxiv APIs. **Free — no API key needed.**
 
 > "Search for recent papers on quantum error correction"
 
@@ -55,13 +55,13 @@ Show all preconfigured science sources and knowledge base statistics.
 
 | Field | Sources |
 |-------|---------|
-| Nanotechnology | Phys.org, ScienceDaily |
+| Nanotechnology | Phys.org, ScienceDaily, bioRxiv |
 | Physics | Phys.org, Quanta Magazine |
 | Earth | EarthSky, ScienceDaily, Phys.org |
 | Astronomy & Space | EarthSky, Phys.org, Science News |
-| Chemistry | Chemistry World, Phys.org |
-| Biology | ScienceDaily, Phys.org, Nature News |
-| Materials Science | Phys.org, ScienceDaily |
+| Chemistry | Chemistry World, Phys.org, bioRxiv |
+| Biology | ScienceDaily, Phys.org, Nature News, bioRxiv |
+| Materials Science | Phys.org, ScienceDaily, bioRxiv |
 
 ## API Keys
 
@@ -70,7 +70,7 @@ Show all preconfigured science sources and knowledge base statistics.
 | `FIRECRAWL_API_KEY` | For web scraping | [firecrawl.dev](https://firecrawl.dev) (free tier available) |
 | `ANTHROPIC_API_KEY` | For chat tutor | [console.anthropic.com](https://console.anthropic.com) |
 
-Paper search (`search_papers`) works without any API keys — it uses the free Semantic Scholar and arXiv APIs.
+Paper search (`search_papers`) works without any API keys — it uses the free Semantic Scholar, arXiv, and bioRxiv APIs.
 
 ## Configuration
 
@@ -93,7 +93,7 @@ Works on **Linux, macOS, and Windows** — everything is pure JavaScript and HTT
 |-----------|:-----:|:-----:|:-------:|
 | Local vector store (JSON file) | Yes | Yes | Yes |
 | Local embeddings (@xenova/transformers) | Yes | Yes | Yes |
-| Semantic Scholar / arXiv APIs | Yes | Yes | Yes |
+| Semantic Scholar / arXiv / bioRxiv APIs | Yes | Yes | Yes |
 | Firecrawl API | Yes | Yes | Yes |
 | stdio MCP transport | Yes | Yes | Yes |
 

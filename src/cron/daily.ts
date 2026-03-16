@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { searchAllPaperQueries, type SemanticScholarQuery } from "../scraper/semanticscholar.js";
 import { searchAllArxivQueries, type ArxivQuery } from "../scraper/arxiv.js";
+import { searchAllBioRxivQueries, BIORXIV_DAILY_CATEGORIES, type BioRxivQuery } from "../scraper/biorxiv.js";
 import { chunkArticles } from "../scraper/chunker.js";
 import { addDocuments, getCollectionStats } from "../vectorstore/index.js";
 import { SCIENCE_FIELDS, type ScienceField } from "../scraper/sources.js";
@@ -31,7 +32,7 @@ function getEnabledFields(): Set<ScienceField> {
 
 // ── Date helpers ───────────────────────────────────────────────────
 
-function getLast24hDates(): { s2Range: string; arxivFrom: string; arxivTo: string } {
+function getLast24hDates(): { s2Range: string; arxivFrom: string; arxivTo: string; biorxivFrom: string; biorxivTo: string } {
   const now = new Date();
   const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
@@ -45,7 +46,11 @@ function getLast24hDates(): { s2Range: string; arxivFrom: string; arxivTo: strin
   const arxivFrom = `${yesterday.getUTCFullYear()}${pad(yesterday.getUTCMonth() + 1)}${pad(yesterday.getUTCDate())}0000`;
   const arxivTo = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}2359`;
 
-  return { s2Range, arxivFrom, arxivTo };
+  // bioRxiv: YYYY-MM-DD
+  const biorxivFrom = s2From;
+  const biorxivTo = s2To;
+
+  return { s2Range, arxivFrom, arxivTo, biorxivFrom, biorxivTo };
 }
 
 // ── Semantic Scholar daily queries ─────────────────────────────────
@@ -120,7 +125,25 @@ async function runDailyScrape(): Promise<void> {
   const arxivArticles = await searchAllArxivQueries(arxivQueries);
   console.log(`  Total: ${arxivArticles.length} papers\n`);
 
-  const allArticles = [...s2Articles, ...arxivArticles];
+  // Build bioRxiv queries for enabled fields
+  const biorxivQueries: BioRxivQuery[] = [];
+  for (const field of fields) {
+    const categories = BIORXIV_DAILY_CATEGORIES[field] || [];
+    for (const category of categories) {
+      biorxivQueries.push({
+        field,
+        category,
+        maxResults: 10,
+        dateRange: { from: dates.biorxivFrom, to: dates.biorxivTo },
+      });
+    }
+  }
+
+  console.log(`[bioRxiv] ${biorxivQueries.length} queries`);
+  const biorxivArticles = await searchAllBioRxivQueries(biorxivQueries);
+  console.log(`  Total: ${biorxivArticles.length} papers\n`);
+
+  const allArticles = [...s2Articles, ...arxivArticles, ...biorxivArticles];
 
   if (allArticles.length === 0) {
     console.log("No new papers found in the last 24 hours.");

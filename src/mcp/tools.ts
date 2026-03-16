@@ -6,6 +6,7 @@ import { chunkArticles } from "../scraper/chunker.js";
 import { SCIENCE_SOURCES, SCIENCE_FIELDS } from "../scraper/sources.js";
 import { searchPapers } from "../scraper/semanticscholar.js";
 import { searchArxiv } from "../scraper/arxiv.js";
+import { searchBioRxiv } from "../scraper/biorxiv.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -231,9 +232,9 @@ export function createMcpServer(): McpServer {
       inputSchema: {
         query: z.string().describe("Search query for research papers"),
         source: z
-          .enum(["semantic_scholar", "arxiv", "both"])
-          .default("both")
-          .describe("Which paper source to search (default: both)"),
+          .enum(["semantic_scholar", "arxiv", "biorxiv", "all"])
+          .default("all")
+          .describe("Which paper source to search (default: all)"),
         field: z
           .enum(SCIENCE_FIELDS)
           .default("physics")
@@ -248,13 +249,17 @@ export function createMcpServer(): McpServer {
           .string()
           .optional()
           .describe("Optional arXiv category filter (e.g. quant-ph, astro-ph, q-bio, cond-mat)"),
+        biorxiv_category: z
+          .string()
+          .optional()
+          .describe("Optional bioRxiv category filter (e.g. neuroscience, genomics, cell-biology, biochemistry)"),
       },
     },
-    async ({ query, source, field, max_results, arxiv_category }) => {
+    async ({ query, source, field, max_results, arxiv_category, biorxiv_category }) => {
       try {
         const allArticles = [];
 
-        if (source === "semantic_scholar" || source === "both") {
+        if (source === "semantic_scholar" || source === "all") {
           const s2Articles = await searchPapers({
             query,
             field,
@@ -263,7 +268,7 @@ export function createMcpServer(): McpServer {
           allArticles.push(...s2Articles);
         }
 
-        if (source === "arxiv" || source === "both") {
+        if (source === "arxiv" || source === "all") {
           const arxivArticles = await searchArxiv({
             searchQuery: query,
             field,
@@ -271,6 +276,15 @@ export function createMcpServer(): McpServer {
             category: arxiv_category,
           });
           allArticles.push(...arxivArticles);
+        }
+
+        if (source === "biorxiv" || source === "all") {
+          const biorxivArticles = await searchBioRxiv({
+            field,
+            maxResults: max_results,
+            category: biorxiv_category,
+          });
+          allArticles.push(...biorxivArticles);
         }
 
         if (allArticles.length === 0) {
