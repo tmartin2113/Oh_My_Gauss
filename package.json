@@ -8,7 +8,8 @@
     "scrape": "tsx src/index.ts scrape",
     "papers": "tsx src/index.ts papers",
     "chat": "tsx src/index.ts chat",
-    "mcp": "tsx src/mcp/server.ts",
+    "mcp": "tsx src/mcp/stdio.ts",
+    "mcp:http": "tsx src/mcp/server.ts",
     "cron:daily": "tsx src/cron/daily.ts"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { queryRelevant, RetrievedContext } from "../vectorstore/chroma.js";
+import { queryRelevant, RetrievedContext } from "../vectorstore/index.js";
 
 const SYSTEM_PROMPT = `You are Oh My Gauss, an enthusiastic and knowledgeable science tutor. Your goal is to help students understand scientific concepts clearly and accurately.
 

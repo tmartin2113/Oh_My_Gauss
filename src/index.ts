@@ -3,7 +3,7 @@ import * as readline from "readline";
 import { SCIENCE_SOURCES } from "./scraper/sources.js";
 import { scrapeAllSources } from "./scraper/firecrawl.js";
 import { chunkArticles } from "./scraper/chunker.js";
-import { addDocuments, getCollectionStats } from "./vectorstore/chroma.js";
+import { addDocuments, getCollectionStats } from "./vectorstore/index.js";
 import { askTutor, ConversationMessage } from "./tutor/chat.js";
 import { SEMANTIC_SCHOLAR_QUERIES, searchAllPaperQueries } from "./scraper/semanticscholar.js";
 import { ARXIV_QUERIES, searchAllArxivQueries } from "./scraper/arxiv.js";

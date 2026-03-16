@@ -2,7 +2,7 @@ import "dotenv/config";
 import { searchAllPaperQueries, type SemanticScholarQuery } from "../scraper/semanticscholar.js";
 import { searchAllArxivQueries, type ArxivQuery } from "../scraper/arxiv.js";
 import { chunkArticles } from "../scraper/chunker.js";
-import { addDocuments, getCollectionStats } from "../vectorstore/chroma.js";
+import { addDocuments, getCollectionStats } from "../vectorstore/index.js";
 import { SCIENCE_FIELDS, type ScienceField } from "../scraper/sources.js";
 
 // ── Configuration ──────────────────────────────────────────────────
