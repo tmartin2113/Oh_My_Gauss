@@ -31,6 +31,8 @@ export async function scrapeSource(
 
   const crawlResult = await client.crawlUrl(source.url, {
     limit: source.maxPages,
+    includePaths: source.includePatterns,
+    excludePaths: source.excludePatterns,
     scrapeOptions: {
       formats: ["markdown"],
     },
