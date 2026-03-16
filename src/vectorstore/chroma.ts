@@ -3,24 +3,33 @@ import { DocumentChunk } from "../scraper/chunker.js";
 import { embedText, embedBatch } from "../embeddings/embed.js";
 
 const COLLECTION_NAME = "science_tutor";
+const CHROMADB_URL = process.env.CHROMADB_URL || "http://localhost:8000";
 
 let client: ChromaClient | null = null;
 let collection: Collection | null = null;
 
+function resetConnection(): void {
+  client = null;
+  collection = null;
+}
+
 async function getCollection(): Promise<Collection> {
   if (!collection) {
-    client = new ChromaClient({ path: "http://localhost:8000" });
-    collection = await client.getOrCreateCollection({
-      name: COLLECTION_NAME,
-      metadata: { "hnsw:space": "cosine" },
-    });
+    client = new ChromaClient({ path: CHROMADB_URL });
+    try {
+      collection = await client.getOrCreateCollection({
+        name: COLLECTION_NAME,
+        metadata: { "hnsw:space": "cosine" },
+      });
+    } catch (error) {
+      resetConnection();
+      throw error;
+    }
   }
   return collection;
 }
 
 export async function addDocuments(chunks: DocumentChunk[]): Promise<void> {
-  const col = await getCollection();
-
   console.log(`Embedding ${chunks.length} chunks...`);
   const embeddings = await embedBatch(chunks.map((c) => c.text));
 
@@ -30,12 +39,18 @@ export async function addDocuments(chunks: DocumentChunk[]): Promise<void> {
     const batchChunks = chunks.slice(i, i + batchSize);
     const batchEmbeddings = embeddings.slice(i, i + batchSize);
 
-    await col.add({
-      ids: batchChunks.map((c) => c.id),
-      documents: batchChunks.map((c) => c.text),
-      embeddings: batchEmbeddings,
-      metadatas: batchChunks.map((c) => c.metadata),
-    });
+    try {
+      const col = await getCollection();
+      await col.add({
+        ids: batchChunks.map((c) => c.id),
+        documents: batchChunks.map((c) => c.text),
+        embeddings: batchEmbeddings,
+        metadatas: batchChunks.map((c) => c.metadata),
+      });
+    } catch (error) {
+      resetConnection();
+      throw error;
+    }
 
     console.log(
       `  Stored batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}`
@@ -58,16 +73,21 @@ export async function queryRelevant(
   topK: number = 5,
   fieldFilter?: string
 ): Promise<RetrievedContext[]> {
-  const col = await getCollection();
   const queryEmbedding = await embedText(question);
-
   const where = fieldFilter ? { field: fieldFilter } : undefined;
 
-  const results = await col.query({
-    queryEmbeddings: [queryEmbedding],
-    nResults: topK,
-    where,
-  });
+  let results;
+  try {
+    const col = await getCollection();
+    results = await col.query({
+      queryEmbeddings: [queryEmbedding],
+      nResults: topK,
+      where,
+    });
+  } catch (error) {
+    resetConnection();
+    throw error;
+  }
 
   const contexts: RetrievedContext[] = [];
   if (results.documents[0]) {
@@ -92,7 +112,12 @@ export async function queryRelevant(
 }
 
 export async function getCollectionStats(): Promise<{ count: number }> {
-  const col = await getCollection();
-  const count = await col.count();
-  return { count };
+  try {
+    const col = await getCollection();
+    const count = await col.count();
+    return { count };
+  } catch (error) {
+    resetConnection();
+    throw error;
+  }
 }

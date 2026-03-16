@@ -71,8 +71,9 @@ Student's question: ${question}`;
     { role: "user", content: userMessage },
   ];
 
+  const model = process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514";
   const response = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model,
     max_tokens: 1024,
     system: SYSTEM_PROMPT,
     messages,

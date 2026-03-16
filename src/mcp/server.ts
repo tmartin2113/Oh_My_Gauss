@@ -241,19 +241,20 @@ app.post("/mcp", async (req, res) => {
   }
 
   // New session
+  let currentSessionId: string | undefined;
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     onsessioninitialized: (id) => {
+      currentSessionId = id;
       transports.set(id, transport);
       console.log(`Session started: ${id}`);
     },
   });
 
   transport.onclose = () => {
-    const id = [...transports.entries()].find(([, t]) => t === transport)?.[0];
-    if (id) {
-      transports.delete(id);
-      console.log(`Session closed: ${id}`);
+    if (currentSessionId) {
+      transports.delete(currentSessionId);
+      console.log(`Session closed: ${currentSessionId}`);
     }
   };
 
