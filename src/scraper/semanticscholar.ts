@@ -86,7 +86,7 @@ export async function searchPapers(
   query: SemanticScholarQuery
 ): Promise<ScrapedArticle[]> {
   const maxResults = query.maxResults || 20;
-  let url = `${BASE_URL}/paper/search/bulk?query=${encodeURIComponent(query.query)}&limit=${maxResults}&fields=${FIELDS}`;
+  let url = `${BASE_URL}/paper/search?query=${encodeURIComponent(query.query)}&limit=${maxResults}&fields=${FIELDS}`;
   if (query.publicationDateRange) {
     url += `&publicationDateOrYear=${encodeURIComponent(query.publicationDateRange)}`;
   }
@@ -97,6 +97,11 @@ export async function searchPapers(
   const data = (await response.json()) as S2SearchResponse;
 
   const articles: ScrapedArticle[] = [];
+
+  if (!data.data || data.data.length === 0) {
+    console.log(`  No papers found for "${query.query}"`);
+    return articles;
+  }
 
   for (const paper of data.data) {
     if (!paper.abstract) continue;
