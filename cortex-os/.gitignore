@@ -1,0 +1,21 @@
+# Android build outputs
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+
+# Keystore files — never commit
+*.jks
+*.keystore
+
+# Secrets
+*.env
+cortex_secure_prefs*

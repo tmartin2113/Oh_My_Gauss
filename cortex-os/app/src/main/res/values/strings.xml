@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Cortex</string>
+    <string name="input_hint">Ask anything…</string>
+    <string name="send_button_description">Send message</string>
+    <string name="voice_button_description">Voice input</string>
+    <string name="api_key_label">Anthropic API Key</string>
+    <string name="api_key_hint">sk-ant-api03-…</string>
+    <string name="api_key_save">Connect</string>
+    <string name="api_key_error_empty">API key cannot be empty</string>
+    <string name="api_key_error_invalid">Key must start with sk-ant-</string>
+    <string name="error_no_key">No API key configured. Tap to set up.</string>
+    <string name="error_network">Network error — check your connection</string>
+    <string name="error_rate_limit">Rate limited — please wait a moment</string>
+    <string name="error_auth">Invalid API key — check your settings</string>
+    <string name="clear_conversation">Clear conversation</string>
+    <string name="settings">Settings</string>
+</resources>
