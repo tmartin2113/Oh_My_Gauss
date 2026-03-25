@@ -11,7 +11,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useAuthStore } from "@/lib/store";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, hydrate } = useAuthStore();
+  const { isAuthenticated, hydrated, hydrate } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -20,6 +20,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     const inAuthGroup = segments[0] === "(auth)";
 
     if (!isAuthenticated && !inAuthGroup) {
@@ -27,7 +28,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     } else if (isAuthenticated && inAuthGroup) {
       router.replace("/(tabs)");
     }
-  }, [isAuthenticated, segments]);
+  }, [isAuthenticated, segments, hydrated]);
 
   return <>{children}</>;
 }

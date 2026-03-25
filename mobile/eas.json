@@ -11,6 +11,9 @@
       },
       "ios": {
         "buildConfiguration": "Debug"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:4000"
       }
     },
     "preview": {
@@ -20,6 +23,9 @@
       },
       "ios": {
         "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": ""
       }
     },
     "production": {
@@ -29,6 +35,9 @@
       },
       "ios": {
         "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": ""
       }
     }
   },

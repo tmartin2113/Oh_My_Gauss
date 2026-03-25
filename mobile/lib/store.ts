@@ -5,15 +5,17 @@ export type Provider = "claude" | "openai" | "gemini";
 
 interface AuthState {
   isAuthenticated: boolean;
+  hydrated: boolean;
   provider: Provider | null;
   /** Load JWT + provider from SecureStore on app boot */
   hydrate: () => Promise<void>;
   setAuth: (provider: Provider) => void;
-  clearAuth: () => void;
+  clearAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
+  hydrated: false,
   provider: null,
 
   hydrate: async () => {
@@ -25,8 +27,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (jwt && provider) {
         set({ isAuthenticated: true, provider: provider as Provider });
       }
-    } catch {
+    } catch (err) {
       // SecureStore unavailable (web/emulator fallback)
+      if (__DEV__) console.warn("[store] hydrate failed:", err);
+    } finally {
+      set({ hydrated: true });
     }
   },
 
@@ -41,8 +46,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         SecureStore.deleteItemAsync("refresh_token"),
         SecureStore.deleteItemAsync("ai_provider"),
       ]);
-    } catch {
-      // ignore
+    } catch (err) {
+      if (__DEV__) console.warn("[store] clearAuth SecureStore error:", err);
     }
     set({ isAuthenticated: false, provider: null });
   },

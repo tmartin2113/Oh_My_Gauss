@@ -1,7 +1,8 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import * as SecureStore from "expo-secure-store";
+import { useAuthStore } from "@/lib/store";
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -16,8 +17,9 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-  } catch {
+  } catch (err) {
     // SecureStore unavailable — continue unauthenticated
+    if (__DEV__) console.warn("[api] request interceptor SecureStore error:", err);
   }
   return config;
 });
@@ -78,12 +80,8 @@ api.interceptors.response.use(
       return api(originalRequest);
     } catch (err) {
       processQueue(err, null);
-      // Clear session on refresh failure — auth store will handle redirect
-      await Promise.allSettled([
-        SecureStore.deleteItemAsync("jwt_token"),
-        SecureStore.deleteItemAsync("refresh_token"),
-        SecureStore.deleteItemAsync("ai_provider"),
-      ]);
+      // Clear session on refresh failure — update Zustand store and SecureStore
+      await useAuthStore.getState().clearAuth();
       return Promise.reject(err);
     } finally {
       isRefreshing = false;
