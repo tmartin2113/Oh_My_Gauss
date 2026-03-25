@@ -6,5 +6,8 @@ export default defineConfig({
     globals: true,
     // Run each test file in its own context so module-level singletons (session store, MCP client) reset
     isolate: true,
+    env: {
+      NODE_ENV: "test",
+    },
   },
 });

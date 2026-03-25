@@ -99,10 +99,11 @@ describe("callTool — SDK integration", () => {
     mockCallToolCall.mockResolvedValueOnce(expected);
     const result = await callTool("search_papers", { query: "test" });
     expect(result).toEqual(expected);
-    expect(mockCallToolCall).toHaveBeenCalledWith({
-      name: "search_papers",
-      arguments: { query: "test" },
-    });
+    expect(mockCallToolCall).toHaveBeenCalledWith(
+      { name: "search_papers", arguments: { query: "test" } },
+      undefined,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("resets client singleton when callTool throws so next call reconnects", async () => {

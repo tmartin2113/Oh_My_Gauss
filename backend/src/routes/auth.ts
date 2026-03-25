@@ -51,7 +51,7 @@ router.post("/validate", authLimiter, async (req, res) => {
 });
 
 /** POST /auth/refresh — rotate refresh token, issue new JWT */
-router.post("/refresh", async (req, res) => {
+router.post("/refresh", authLimiter, async (req, res) => {
   const parsed = refreshSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "refreshToken required" });

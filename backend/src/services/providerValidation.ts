@@ -14,18 +14,12 @@ export class ProviderValidationError extends Error {
 async function validateClaude(apiKey: string): Promise<void> {
   const client = new Anthropic({ apiKey });
   try {
-    // Minimal request to verify the key — cheapest possible call
-    await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1,
-      messages: [{ role: "user", content: "ping" }],
-    });
+    await client.models.list({ limit: 1 });
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) {
       throw new ProviderValidationError("claude", "Invalid Claude API key");
     }
     // Other errors (network, rate-limit) — key format is likely valid
-    // Rethrow to bubble up unexpected errors
     throw err;
   }
 }
@@ -41,7 +35,7 @@ async function validateOpenAI(apiKey: string): Promise<void> {
 async function validateGemini(apiKey: string): Promise<void> {
   const url = `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`;
   const res = await fetch(url);
-  if (res.status === 400 || res.status === 403) {
+  if (res.status === 400 || res.status === 401 || res.status === 403) {
     throw new ProviderValidationError("gemini", "Invalid Gemini API key");
   }
   if (!res.ok) throw new Error(`Gemini validation failed: ${res.status}`);

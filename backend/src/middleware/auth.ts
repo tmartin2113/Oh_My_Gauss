@@ -3,6 +3,10 @@ import jwt from "jsonwebtoken";
 import { getSession } from "../services/sessionStore.js";
 import type { JwtPayload } from "../types.js";
 
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === "production") {
+  console.error("FATAL: JWT_SECRET environment variable is required in production");
+  process.exit(1);
+}
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-in-production";
 
 export function signToken(payload: JwtPayload, expiresIn: string | number = "1h"): string {

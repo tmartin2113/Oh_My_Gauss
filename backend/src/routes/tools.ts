@@ -78,7 +78,7 @@ router.post("/:toolName", async (req, res) => {
   try {
     const result = await callTool(toolName, parsed.data as Record<string, unknown>);
     if (result.isError) {
-      res.status(500).json({ error: "Tool execution failed", result });
+      res.status(500).json({ error: "Tool execution failed" });
       return;
     }
     res.json({ result });

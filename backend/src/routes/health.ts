@@ -23,7 +23,6 @@ router.get("/", async (_req, res) => {
     backend: "ok",
     mcp: {
       status: mcpStatus,
-      url: MCP_HEALTH_URL,
       latencyMs: mcpLatencyMs,
     },
     timestamp: new Date().toISOString(),

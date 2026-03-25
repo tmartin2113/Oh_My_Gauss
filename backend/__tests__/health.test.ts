@@ -68,11 +68,11 @@ describe("GET /health", () => {
     expect(res.body.backend).toBe("ok");
   });
 
-  it("includes MCP URL in response", async () => {
+  it("does not expose internal MCP URL in response", async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200 } as Response);
 
     const app = buildApp();
     const res = await request(app).get("/health");
-    expect(res.body.mcp.url).toContain("3100");
+    expect(res.body.mcp.url).toBeUndefined();
   });
 });
