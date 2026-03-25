@@ -43,7 +43,8 @@ function parsePapers(result: unknown): Paper[] {
     const text = r?.content?.[0]?.text ?? "";
     const parsed = JSON.parse(text);
     return Array.isArray(parsed) ? parsed : parsed?.papers ?? [];
-  } catch {
+  } catch (err) {
+    if (__DEV__) console.warn("[papers] parsePapers failed:", err);
     return [];
   }
 }

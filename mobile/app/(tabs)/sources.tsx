@@ -37,7 +37,8 @@ function parseSources(result: unknown): Source[] {
     return Array.isArray(parsed)
       ? parsed
       : parsed?.sources ?? parsed?.data ?? [];
-  } catch {
+  } catch (err) {
+    if (__DEV__) console.warn("[sources] parseSources failed:", err);
     return [];
   }
 }

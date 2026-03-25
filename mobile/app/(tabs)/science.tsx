@@ -56,7 +56,8 @@ function parseResults(result: unknown): ScienceResult[] {
     const text = r?.content?.[0]?.text ?? "";
     const parsed = JSON.parse(text);
     return Array.isArray(parsed) ? parsed : parsed?.results ?? [parsed];
-  } catch {
+  } catch (err) {
+    if (__DEV__) console.warn("[science] parseResults failed:", err);
     return [];
   }
 }
