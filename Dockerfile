@@ -16,7 +16,8 @@ RUN npm run build
 
 # ---- Production image ----
 FROM node:22-alpine AS production
-RUN npm install -g pm2
+RUN npm install -g pm2 && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
@@ -36,4 +37,5 @@ COPY ecosystem.config.cjs ./
 # Only port 3000 is public; port 3100 (MCP) stays internal
 EXPOSE 3000
 
+USER appuser
 CMD ["pm2-runtime", "ecosystem.config.cjs"]

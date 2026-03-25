@@ -22,6 +22,11 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 
+// Liveness probe — only checks Express is listening (used by Railway healthcheck)
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 // Routes
 app.use("/auth", authRouter);
 app.use("/tools", toolsRouter);
