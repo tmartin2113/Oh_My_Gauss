@@ -1,4 +1,7 @@
 import { ScrapedArticle } from "./firecrawl.js";
+import { createLogger } from "../util/logger.js";
+
+const log = createLogger("chunker");
 
 export interface DocumentChunk {
   id: string;
@@ -109,8 +112,9 @@ export function chunkArticles(articles: ScrapedArticle[]): DocumentChunk[] {
   for (const article of articles) {
     allChunks.push(...chunkArticle(article));
   }
-  console.log(
-    `Chunked ${articles.length} articles into ${allChunks.length} chunks`
+  log.info(
+    { articles: articles.length, chunks: allChunks.length },
+    "Chunked articles into chunks"
   );
   return allChunks;
 }

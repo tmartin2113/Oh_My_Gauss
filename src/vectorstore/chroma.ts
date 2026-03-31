@@ -2,6 +2,9 @@ import { ChromaClient, Collection } from "chromadb";
 import { DocumentChunk } from "../scraper/chunker.js";
 import { embedText, embedBatch } from "../embeddings/embed.js";
 import type { RetrievedContext, VectorStore } from "./types.js";
+import { createLogger } from "../util/logger.js";
+
+const log = createLogger("vectorstore:chroma");
 
 const COLLECTION_NAME = "science_tutor";
 const CHROMADB_URL = process.env.CHROMADB_URL || "http://localhost:8000";
@@ -32,7 +35,7 @@ class ChromaVectorStore implements VectorStore {
   }
 
   async addDocuments(chunks: DocumentChunk[]): Promise<void> {
-    console.log(`Embedding ${chunks.length} chunks...`);
+    log.info(`Embedding ${chunks.length} chunks...`);
     const embeddings = await embedBatch(chunks.map((c) => c.text));
 
     const batchSize = 100;
@@ -53,12 +56,12 @@ class ChromaVectorStore implements VectorStore {
         throw error;
       }
 
-      console.log(
+      log.info(
         `  Stored batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(chunks.length / batchSize)}`
       );
     }
 
-    console.log(`Stored ${chunks.length} chunks in ChromaDB`);
+    log.info(`Stored ${chunks.length} chunks in ChromaDB`);
   }
 
   async queryRelevant(

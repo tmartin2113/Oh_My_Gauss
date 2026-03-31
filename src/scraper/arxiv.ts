@@ -1,4 +1,11 @@
 import { ScrapedArticle } from "./firecrawl.js";
+import { createLogger } from "../util/logger.js";
+import { resilientFetch } from "../util/resilientFetch.js";
+import { CircuitBreaker } from "../util/circuitBreaker.js";
+import { safeAsync } from "../util/errors.js";
+
+const log = createLogger("arxiv");
+const breaker = new CircuitBreaker("arxiv", { threshold: 3, resetTimeoutMs: 60_000 });
 
 const BASE_URL = "http://export.arxiv.org/api/query";
 
@@ -113,12 +120,9 @@ export async function searchArxiv(
 
   const url = `${BASE_URL}?search_query=${searchTerms}&start=0&max_results=${maxResults}&sortBy=submittedDate&sortOrder=descending`;
 
-  console.log(`  Searching arXiv: "${query.searchQuery}" (${query.category || "all"})...`);
+  log.info({ query: query.searchQuery, category: query.category }, `Searching arXiv: "${query.searchQuery}" (${query.category || "all"})`);
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`arXiv API error: ${response.status} ${response.statusText}`);
-  }
+  const response = await resilientFetch(url, { service: "arXiv", timeoutMs: 15_000, retries: 3, circuitBreaker: breaker });
 
   const xml = await response.text();
   const entries = parseAtomXml(xml);
@@ -139,7 +143,7 @@ export async function searchArxiv(
     };
   });
 
-  console.log(`  Got ${articles.length} papers from arXiv for "${query.searchQuery}"`);
+  log.info({ query: query.searchQuery, count: articles.length }, `Got ${articles.length} papers from arXiv for "${query.searchQuery}"`);
   return articles;
 }
 
@@ -149,17 +153,14 @@ export async function searchAllArxivQueries(
   const allArticles: ScrapedArticle[] = [];
 
   for (const query of queries) {
-    try {
-      const articles = await searchArxiv(query);
-      allArticles.push(...articles);
-      // arXiv asks for 3-second courtesy delay between requests
-      await new Promise((r) => setTimeout(r, 3000));
-    } catch (error) {
-      console.error(
-        `  Error searching arXiv for "${query.searchQuery}":`,
-        error instanceof Error ? error.message : error
-      );
+    const result = await safeAsync(() => searchArxiv(query));
+    if (result.ok) {
+      allArticles.push(...result.value);
+    } else {
+      log.error({ query: query.searchQuery, err: result.error }, `Error searching arXiv for "${query.searchQuery}"`);
     }
+    // arXiv asks for 3-second courtesy delay between requests
+    await new Promise((r) => setTimeout(r, 3000));
   }
 
   return allArticles;

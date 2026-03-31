@@ -1,15 +1,34 @@
 import "dotenv/config";
 import { randomUUID } from "crypto";
 import express from "express";
+import cors from "cors";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { createMcpServer } from "./tools.js";
+import { createLogger } from "../util/logger.js";
 
-const server = createMcpServer();
+const log = createLogger("mcp:server");
+
 const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
+const HOST = process.env.MCP_HOST || "0.0.0.0";
 
 const app = express();
+
+// CORS — required for CortexOS and other remote MCP clients
+app.use(
+  cors({
+    origin: process.env.MCP_CORS_ORIGIN === "none" ? false : true,
+    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "mcp-session-id", "Authorization"],
+    exposedHeaders: ["mcp-session-id"],
+  })
+);
+
 app.use(express.json());
 
+// ---------- Streamable HTTP transport (MCP 2025-03-26+) ----------
+
+const streamableServer = createMcpServer();
 const transports = new Map<string, StreamableHTTPServerTransport>();
 
 app.post("/mcp", async (req, res) => {
@@ -36,7 +55,7 @@ app.post("/mcp", async (req, res) => {
     }
   };
 
-  await server.connect(transport);
+  await streamableServer.connect(transport);
   await transport.handleRequest(req, res, req.body);
 });
 
@@ -60,11 +79,69 @@ app.delete("/mcp", async (req, res) => {
   res.status(400).json({ error: "No valid session." });
 });
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", name: "oh-my-gauss", version: "1.0.0" });
+// ---------- SSE transport (legacy MCP clients) ----------
+
+const sseServer = createMcpServer();
+const sseSessions = new Map<string, SSEServerTransport>();
+
+app.get("/sse", async (_req, res) => {
+  const transport = new SSEServerTransport("/messages", res);
+  sseSessions.set(transport.sessionId, transport);
+
+  transport.onclose = () => {
+    sseSessions.delete(transport.sessionId);
+  };
+
+  await sseServer.connect(transport);
 });
 
-app.listen(PORT, "127.0.0.1", () => {
-  console.log(`Oh My Gauss MCP server running at http://127.0.0.1:${PORT}/mcp`);
-  console.log(`Health check: http://127.0.0.1:${PORT}/health`);
+app.post("/messages", async (req, res) => {
+  const sessionId = req.query.sessionId as string | undefined;
+  if (!sessionId || !sseSessions.has(sessionId)) {
+    res.status(400).json({ error: "Invalid or missing sessionId query parameter." });
+    return;
+  }
+  const transport = sseSessions.get(sessionId)!;
+  await transport.handlePostMessage(req, res, req.body);
+});
+
+// ---------- Health / discovery ----------
+
+app.get("/health", async (_req, res) => {
+  let vectorStoreStatus = "unknown";
+  let vectorStoreCount = 0;
+  try {
+    const { getCollectionStats } = await import("../vectorstore/index.js");
+    const stats = await getCollectionStats();
+    vectorStoreStatus = "ok";
+    vectorStoreCount = stats.count;
+  } catch {
+    vectorStoreStatus = "degraded";
+  }
+
+  const overall = vectorStoreStatus === "ok" ? "ok" : "degraded";
+
+  res.json({
+    status: overall,
+    name: "oh-my-gauss",
+    version: "1.0.0",
+    dependencies: {
+      vectorStore: { status: vectorStoreStatus, documents: vectorStoreCount },
+    },
+    mcp: {
+      transports: ["streamable-http", "sse"],
+      endpoints: {
+        streamableHttp: "/mcp",
+        sse: "/sse",
+        sseMessages: "/messages",
+      },
+      tools: ["search_science", "scrape_science", "list_sources", "search_papers"],
+    },
+  });
+});
+
+app.listen(PORT, HOST, () => {
+  log.info({ host: HOST, port: PORT }, "Oh My Gauss MCP server running");
+  log.info({ endpoint: `http://${HOST}:${PORT}/sse` }, "SSE endpoint");
+  log.info({ endpoint: `http://${HOST}:${PORT}/health` }, "Health check");
 });

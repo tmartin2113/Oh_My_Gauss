@@ -1,5 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { queryRelevant, RetrievedContext } from "../vectorstore/index.js";
+import { createLogger } from "../util/logger.js";
+import { scanForInjection, sanitizeForRag } from "../util/injectionDetector.js";
+
+const log = createLogger("tutor");
 
 const SYSTEM_PROMPT = `You are Oh My Gauss, an enthusiastic and knowledgeable science tutor. Your goal is to help students understand scientific concepts clearly and accurately.
 
@@ -49,8 +53,18 @@ export async function askTutor(
 ): Promise<{ answer: string; sources: RetrievedContext[] }> {
   const client = getClient();
 
+  const scan = scanForInjection(question);
+  if (scan.flagged) {
+    log.warn({ tier: scan.tier, reason: scan.reason }, "Injection attempt in tutor question");
+  }
+
   // Retrieve relevant context from ChromaDB
   const contexts = await queryRelevant(question, 5);
+
+  for (const ctx of contexts) {
+    ctx.text = sanitizeForRag(ctx.text);
+  }
+
   const contextBlock = buildContextBlock(contexts);
 
   // Build message with context

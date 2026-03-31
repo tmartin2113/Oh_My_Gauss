@@ -1,5 +1,12 @@
 import { ScrapedArticle } from "./firecrawl.js";
 import type { ScienceField } from "./sources.js";
+import { createLogger } from "../util/logger.js";
+import { resilientFetch } from "../util/resilientFetch.js";
+import { CircuitBreaker } from "../util/circuitBreaker.js";
+import { safeAsync } from "../util/errors.js";
+
+const log = createLogger("biorxiv");
+const breaker = new CircuitBreaker("biorxiv", { threshold: 3, resetTimeoutMs: 60_000 });
 
 const BASE_URL = "https://api.biorxiv.org/details/biorxiv";
 
@@ -92,15 +99,12 @@ export async function searchBioRxiv(
   const articles: ScrapedArticle[] = [];
   let cursor = 0;
 
-  console.log(`  Searching bioRxiv: ${query.category || "all"} (${dateRange.from} to ${dateRange.to})...`);
+  log.info({ category: query.category, dateRange }, `Searching bioRxiv: ${query.category || "all"} (${dateRange.from} to ${dateRange.to})`);
 
   while (articles.length < maxResults) {
     const url = `${BASE_URL}/${dateRange.from}/${dateRange.to}/${cursor}/json`;
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`bioRxiv API error: ${response.status} ${response.statusText}`);
-    }
+    const response = await resilientFetch(url, { service: "bioRxiv", timeoutMs: 15_000, retries: 3, circuitBreaker: breaker });
 
     const data = (await response.json()) as BioRxivResponse;
 
@@ -144,7 +148,7 @@ export async function searchBioRxiv(
     await new Promise((r) => setTimeout(r, 1000));
   }
 
-  console.log(`  Got ${articles.length} papers from bioRxiv for "${query.category || "all"}"`);
+  log.info({ category: query.category, count: articles.length }, `Got ${articles.length} papers from bioRxiv for "${query.category || "all"}"`);
   return articles;
 }
 
@@ -154,17 +158,14 @@ export async function searchAllBioRxivQueries(
   const allArticles: ScrapedArticle[] = [];
 
   for (const query of queries) {
-    try {
-      const articles = await searchBioRxiv(query);
-      allArticles.push(...articles);
-      // Courtesy delay between queries
-      await new Promise((r) => setTimeout(r, 1000));
-    } catch (error) {
-      console.error(
-        `  Error searching bioRxiv for "${query.category || "all"}":`,
-        error instanceof Error ? error.message : error
-      );
+    const result = await safeAsync(() => searchBioRxiv(query));
+    if (result.ok) {
+      allArticles.push(...result.value);
+    } else {
+      log.error({ category: query.category, err: result.error }, `Error searching bioRxiv for "${query.category || "all"}"`);
     }
+    // Courtesy delay between queries
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
   return allArticles;

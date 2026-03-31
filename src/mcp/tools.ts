@@ -1,12 +1,16 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { queryRelevant, addDocuments, getCollectionStats } from "../vectorstore/index.js";
-import { scrapeSource } from "../scraper/firecrawl.js";
+import { scrapeSource, type ScrapedArticle } from "../scraper/firecrawl.js";
 import { chunkArticles } from "../scraper/chunker.js";
 import { SCIENCE_SOURCES, SCIENCE_FIELDS } from "../scraper/sources.js";
 import { searchPapers } from "../scraper/semanticscholar.js";
 import { searchArxiv } from "../scraper/arxiv.js";
 import { searchBioRxiv } from "../scraper/biorxiv.js";
+import { createLogger } from "../util/logger.js";
+import { scanForInjection, sanitizeForRag } from "../util/injectionDetector.js";
+
+const log = createLogger("mcp:tools");
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -37,7 +41,12 @@ export function createMcpServer(): McpServer {
     },
     async ({ question, field, num_results }) => {
       try {
-        const contexts = await queryRelevant(question, num_results, field);
+        const scan = scanForInjection(question);
+        if (scan.flagged) {
+          log.warn({ tier: scan.tier, reason: scan.reason }, "Injection attempt detected in search query");
+        }
+        const safeQuestion = sanitizeForRag(question);
+        const contexts = await queryRelevant(safeQuestion, num_results, field);
 
         if (contexts.length === 0) {
           return {
@@ -80,7 +89,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Scrape Science Website",
       description:
-        "Scrape a science website using Firecrawl and add it to the knowledge base. Can scrape a preconfigured source by name or a custom URL.",
+        "Scrape a science website using Firecrawl (PAID — requires FIRECRAWL_API_KEY, consumes API credits) and add it to the knowledge base. Only use when the user explicitly asks to scrape a website. For free paper search, use search_papers instead.",
       inputSchema: {
         source_name: z
           .string()
@@ -257,34 +266,41 @@ export function createMcpServer(): McpServer {
     },
     async ({ query, source, field, max_results, arxiv_category, biorxiv_category }) => {
       try {
-        const allArticles = [];
+        const scan = scanForInjection(query);
+        if (scan.flagged) {
+          log.warn({ tier: scan.tier, reason: scan.reason }, "Injection attempt detected in paper search query");
+        }
+        const safeQuery = sanitizeForRag(query);
+
+        // Run all API calls in parallel — each has its own circuit breaker and retry logic
+        const fetchers: Promise<ScrapedArticle[]>[] = [];
 
         if (source === "semantic_scholar" || source === "all") {
-          const s2Articles = await searchPapers({
-            query,
-            field,
-            maxResults: max_results,
-          });
-          allArticles.push(...s2Articles);
+          fetchers.push(
+            searchPapers({ query: safeQuery, field, maxResults: max_results })
+          );
         }
 
         if (source === "arxiv" || source === "all") {
-          const arxivArticles = await searchArxiv({
-            searchQuery: query,
-            field,
-            maxResults: max_results,
-            category: arxiv_category,
-          });
-          allArticles.push(...arxivArticles);
+          fetchers.push(
+            searchArxiv({ searchQuery: safeQuery, field, maxResults: max_results, category: arxiv_category })
+          );
         }
 
         if (source === "biorxiv" || source === "all") {
-          const biorxivArticles = await searchBioRxiv({
-            field,
-            maxResults: max_results,
-            category: biorxiv_category,
-          });
-          allArticles.push(...biorxivArticles);
+          fetchers.push(
+            searchBioRxiv({ field, maxResults: max_results, category: biorxiv_category })
+          );
+        }
+
+        const results = await Promise.allSettled(fetchers);
+        const allArticles: ScrapedArticle[] = [];
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            allArticles.push(...result.value);
+          } else {
+            log.warn({ err: result.reason }, "Paper source failed (partial results returned)");
+          }
         }
 
         if (allArticles.length === 0) {
@@ -298,19 +314,22 @@ export function createMcpServer(): McpServer {
           };
         }
 
-        const chunks = chunkArticles(allArticles);
-        await addDocuments(chunks);
-
         const summaries = allArticles
           .slice(0, 5)
           .map((a, i) => `${i + 1}. "${a.title}" (${a.sourceName}) — ${a.url}`)
           .join("\n");
 
+        // Embed and store in the background — don't block the response
+        const chunks = chunkArticles(allArticles);
+        addDocuments(chunks).catch((err) =>
+          log.error({ err }, "Background embedding/storage failed")
+        );
+
         return {
           content: [
             {
               type: "text" as const,
-              text: `Found ${allArticles.length} papers, stored ${chunks.length} chunks.\n\nTop results:\n${summaries}${allArticles.length > 5 ? `\n... and ${allArticles.length - 5} more` : ""}`,
+              text: `Found ${allArticles.length} papers (${chunks.length} chunks queued for indexing).\n\nTop results:\n${summaries}${allArticles.length > 5 ? `\n... and ${allArticles.length - 5} more` : ""}`,
             },
           ],
         };
