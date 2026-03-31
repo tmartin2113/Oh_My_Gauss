@@ -89,7 +89,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Scrape Science Website",
       description:
-        "Scrape a science website using Firecrawl and add it to the knowledge base. Can scrape a preconfigured source by name or a custom URL.",
+        "Scrape a science website using Firecrawl (PAID — requires FIRECRAWL_API_KEY, consumes API credits) and add it to the knowledge base. Only use when the user explicitly asks to scrape a website. For free paper search, use search_papers instead.",
       inputSchema: {
         source_name: z
           .string()
