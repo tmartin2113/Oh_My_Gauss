@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { queryRelevant, addDocuments, getCollectionStats } from "../vectorstore/index.js";
-import { scrapeSource } from "../scraper/firecrawl.js";
+import { scrapeSource, type ScrapedArticle } from "../scraper/firecrawl.js";
 import { chunkArticles } from "../scraper/chunker.js";
 import { SCIENCE_SOURCES, SCIENCE_FIELDS } from "../scraper/sources.js";
 import { searchPapers } from "../scraper/semanticscholar.js";
@@ -271,34 +271,36 @@ export function createMcpServer(): McpServer {
           log.warn({ tier: scan.tier, reason: scan.reason }, "Injection attempt detected in paper search query");
         }
         const safeQuery = sanitizeForRag(query);
-        const allArticles = [];
+
+        // Run all API calls in parallel — each has its own circuit breaker and retry logic
+        const fetchers: Promise<ScrapedArticle[]>[] = [];
 
         if (source === "semantic_scholar" || source === "all") {
-          const s2Articles = await searchPapers({
-            query: safeQuery,
-            field,
-            maxResults: max_results,
-          });
-          allArticles.push(...s2Articles);
+          fetchers.push(
+            searchPapers({ query: safeQuery, field, maxResults: max_results })
+          );
         }
 
         if (source === "arxiv" || source === "all") {
-          const arxivArticles = await searchArxiv({
-            searchQuery: safeQuery,
-            field,
-            maxResults: max_results,
-            category: arxiv_category,
-          });
-          allArticles.push(...arxivArticles);
+          fetchers.push(
+            searchArxiv({ searchQuery: safeQuery, field, maxResults: max_results, category: arxiv_category })
+          );
         }
 
         if (source === "biorxiv" || source === "all") {
-          const biorxivArticles = await searchBioRxiv({
-            field,
-            maxResults: max_results,
-            category: biorxiv_category,
-          });
-          allArticles.push(...biorxivArticles);
+          fetchers.push(
+            searchBioRxiv({ field, maxResults: max_results, category: biorxiv_category })
+          );
+        }
+
+        const results = await Promise.allSettled(fetchers);
+        const allArticles: ScrapedArticle[] = [];
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            allArticles.push(...result.value);
+          } else {
+            log.warn({ err: result.reason }, "Paper source failed (partial results returned)");
+          }
         }
 
         if (allArticles.length === 0) {
@@ -312,19 +314,22 @@ export function createMcpServer(): McpServer {
           };
         }
 
-        const chunks = chunkArticles(allArticles);
-        await addDocuments(chunks);
-
         const summaries = allArticles
           .slice(0, 5)
           .map((a, i) => `${i + 1}. "${a.title}" (${a.sourceName}) — ${a.url}`)
           .join("\n");
 
+        // Embed and store in the background — don't block the response
+        const chunks = chunkArticles(allArticles);
+        addDocuments(chunks).catch((err) =>
+          log.error({ err }, "Background embedding/storage failed")
+        );
+
         return {
           content: [
             {
               type: "text" as const,
-              text: `Found ${allArticles.length} papers, stored ${chunks.length} chunks.\n\nTop results:\n${summaries}${allArticles.length > 5 ? `\n... and ${allArticles.length - 5} more` : ""}`,
+              text: `Found ${allArticles.length} papers (${chunks.length} chunks queued for indexing).\n\nTop results:\n${summaries}${allArticles.length > 5 ? `\n... and ${allArticles.length - 5} more` : ""}`,
             },
           ],
         };
