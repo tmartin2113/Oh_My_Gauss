@@ -5,6 +5,9 @@ import cors from "cors";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { createMcpServer } from "./tools.js";
+import { createLogger } from "../util/logger.js";
+
+const log = createLogger("mcp:server");
 
 const PORT = parseInt(process.env.MCP_PORT || "3100", 10);
 const HOST = process.env.MCP_HOST || "0.0.0.0";
@@ -104,11 +107,27 @@ app.post("/messages", async (req, res) => {
 
 // ---------- Health / discovery ----------
 
-app.get("/health", (_req, res) => {
+app.get("/health", async (_req, res) => {
+  let vectorStoreStatus = "unknown";
+  let vectorStoreCount = 0;
+  try {
+    const { getCollectionStats } = await import("../vectorstore/index.js");
+    const stats = await getCollectionStats();
+    vectorStoreStatus = "ok";
+    vectorStoreCount = stats.count;
+  } catch {
+    vectorStoreStatus = "degraded";
+  }
+
+  const overall = vectorStoreStatus === "ok" ? "ok" : "degraded";
+
   res.json({
-    status: "ok",
+    status: overall,
     name: "oh-my-gauss",
     version: "1.0.0",
+    dependencies: {
+      vectorStore: { status: vectorStoreStatus, documents: vectorStoreCount },
+    },
     mcp: {
       transports: ["streamable-http", "sse"],
       endpoints: {
@@ -122,7 +141,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.listen(PORT, HOST, () => {
-  console.log(`Oh My Gauss MCP server running at http://${HOST}:${PORT}/mcp`);
-  console.log(`SSE endpoint: http://${HOST}:${PORT}/sse`);
-  console.log(`Health check: http://${HOST}:${PORT}/health`);
+  log.info({ host: HOST, port: PORT }, "Oh My Gauss MCP server running");
+  log.info({ endpoint: `http://${HOST}:${PORT}/sse` }, "SSE endpoint");
+  log.info({ endpoint: `http://${HOST}:${PORT}/health` }, "Health check");
 });

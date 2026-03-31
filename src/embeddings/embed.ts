@@ -1,17 +1,26 @@
 import { pipeline, type FeatureExtractionPipeline } from "@xenova/transformers";
+import { createLogger } from "../util/logger.js";
+import { EmbeddingError } from "../util/errors.js";
 
 const MODEL_NAME = "Xenova/all-MiniLM-L6-v2";
 const EMBEDDING_DIM = 384;
+
+const log = createLogger("embeddings");
 
 let embedder: FeatureExtractionPipeline | null = null;
 
 async function getEmbedder(): Promise<FeatureExtractionPipeline> {
   if (!embedder) {
-    console.log("Loading embedding model (first time may download ~23MB)...");
-    embedder = await pipeline("feature-extraction", MODEL_NAME, {
-      quantized: true,
-    });
-    console.log("Embedding model loaded.");
+    log.info("Loading embedding model (first time may download ~23MB)...");
+    try {
+      embedder = await pipeline("feature-extraction", MODEL_NAME, {
+        quantized: true,
+      });
+    } catch (error) {
+      log.error({ err: error }, "Failed to load embedding model");
+      throw new EmbeddingError("Failed to load embedding model", error);
+    }
+    log.info("Embedding model loaded.");
   }
   return embedder;
 }
@@ -31,13 +40,10 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
     const embeddings = await Promise.all(batch.map((t) => embedText(t)));
     results.push(...embeddings);
     if (texts.length > batchSize) {
-      process.stdout.write(
-        `\r  Embedded ${Math.min(i + batchSize, texts.length)}/${texts.length} chunks`
+      log.debug(
+        `Embedded ${Math.min(i + batchSize, texts.length)}/${texts.length} chunks`
       );
     }
-  }
-  if (texts.length > batchSize) {
-    console.log(); // newline after progress
   }
   return results;
 }

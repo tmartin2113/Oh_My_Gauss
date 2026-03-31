@@ -7,6 +7,10 @@ import { SCIENCE_SOURCES, SCIENCE_FIELDS } from "../scraper/sources.js";
 import { searchPapers } from "../scraper/semanticscholar.js";
 import { searchArxiv } from "../scraper/arxiv.js";
 import { searchBioRxiv } from "../scraper/biorxiv.js";
+import { createLogger } from "../util/logger.js";
+import { scanForInjection, sanitizeForRag } from "../util/injectionDetector.js";
+
+const log = createLogger("mcp:tools");
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -37,7 +41,12 @@ export function createMcpServer(): McpServer {
     },
     async ({ question, field, num_results }) => {
       try {
-        const contexts = await queryRelevant(question, num_results, field);
+        const scan = scanForInjection(question);
+        if (scan.flagged) {
+          log.warn({ tier: scan.tier, reason: scan.reason }, "Injection attempt detected in search query");
+        }
+        const safeQuestion = sanitizeForRag(question);
+        const contexts = await queryRelevant(safeQuestion, num_results, field);
 
         if (contexts.length === 0) {
           return {
@@ -257,11 +266,16 @@ export function createMcpServer(): McpServer {
     },
     async ({ query, source, field, max_results, arxiv_category, biorxiv_category }) => {
       try {
+        const scan = scanForInjection(query);
+        if (scan.flagged) {
+          log.warn({ tier: scan.tier, reason: scan.reason }, "Injection attempt detected in paper search query");
+        }
+        const safeQuery = sanitizeForRag(query);
         const allArticles = [];
 
         if (source === "semantic_scholar" || source === "all") {
           const s2Articles = await searchPapers({
-            query,
+            query: safeQuery,
             field,
             maxResults: max_results,
           });
@@ -270,7 +284,7 @@ export function createMcpServer(): McpServer {
 
         if (source === "arxiv" || source === "all") {
           const arxivArticles = await searchArxiv({
-            searchQuery: query,
+            searchQuery: safeQuery,
             field,
             maxResults: max_results,
             category: arxiv_category,

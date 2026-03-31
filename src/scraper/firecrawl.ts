@@ -1,5 +1,11 @@
 import FirecrawlApp from "@mendable/firecrawl-js";
 import { ScienceSource } from "./sources.js";
+import { createLogger } from "../util/logger.js";
+import { CircuitBreaker } from "../util/circuitBreaker.js";
+import { safeAsync } from "../util/errors.js";
+
+const log = createLogger("firecrawl");
+const breaker = new CircuitBreaker("firecrawl", { threshold: 3, resetTimeoutMs: 120_000 });
 
 export interface ScrapedArticle {
   url: string;
@@ -27,19 +33,21 @@ export async function scrapeSource(
   source: ScienceSource
 ): Promise<ScrapedArticle[]> {
   const client = getClient();
-  console.log(`  Crawling ${source.name} (${source.url})...`);
+  log.info({ source: source.name, url: source.url }, `Crawling ${source.name} (${source.url})`);
 
-  const crawlResult = await client.crawlUrl(source.url, {
-    limit: source.maxPages,
-    includePaths: source.includePatterns,
-    excludePaths: source.excludePatterns,
-    scrapeOptions: {
-      formats: ["markdown"],
-    },
-  });
+  const crawlResult = await breaker.execute(() =>
+    client.crawlUrl(source.url, {
+      limit: source.maxPages,
+      includePaths: source.includePatterns,
+      excludePaths: source.excludePatterns,
+      scrapeOptions: {
+        formats: ["markdown"],
+      },
+    })
+  );
 
   if (!crawlResult.success) {
-    console.error(`  Failed to crawl ${source.name}: ${crawlResult.error}`);
+    log.error({ source: source.name, error: crawlResult.error }, `Failed to crawl ${source.name}: ${crawlResult.error}`);
     return [];
   }
 
@@ -62,7 +70,7 @@ export async function scrapeSource(
     });
   }
 
-  console.log(`  Got ${articles.length} articles from ${source.name}`);
+  log.info({ source: source.name, count: articles.length }, `Got ${articles.length} articles from ${source.name}`);
   return articles;
 }
 
@@ -72,14 +80,11 @@ export async function scrapeAllSources(
   const allArticles: ScrapedArticle[] = [];
 
   for (const source of sources) {
-    try {
-      const articles = await scrapeSource(source);
-      allArticles.push(...articles);
-    } catch (error) {
-      console.error(
-        `  Error scraping ${source.name}:`,
-        error instanceof Error ? error.message : error
-      );
+    const result = await safeAsync(() => scrapeSource(source));
+    if (result.ok) {
+      allArticles.push(...result.value);
+    } else {
+      log.error({ source: source.name, err: result.error }, `Error scraping ${source.name}`);
     }
   }
 

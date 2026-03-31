@@ -1,4 +1,11 @@
 import { ScrapedArticle } from "./firecrawl.js";
+import { createLogger } from "../util/logger.js";
+import { resilientFetch } from "../util/resilientFetch.js";
+import { CircuitBreaker } from "../util/circuitBreaker.js";
+import { safeAsync } from "../util/errors.js";
+
+const log = createLogger("semanticscholar");
+const breaker = new CircuitBreaker("semantic-scholar", { threshold: 3, resetTimeoutMs: 60_000 });
 
 const BASE_URL = "https://api.semanticscholar.org/graph/v1";
 const FIELDS = "title,abstract,url,year,authors,publicationDate,openAccessPdf,publicationTypes";
@@ -61,27 +68,6 @@ export const SEMANTIC_SCHOLAR_QUERIES: SemanticScholarQuery[] = [
   { query: "evolutionary biology ecology biodiversity", field: "biology", maxResults: 10 },
 ];
 
-async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
-  for (let attempt = 0; attempt < retries; attempt++) {
-    const response = await fetch(url);
-
-    if (response.status === 429) {
-      // Rate limited — wait and retry
-      const waitMs = Math.pow(2, attempt + 1) * 1000;
-      console.log(`  Rate limited, waiting ${waitMs / 1000}s...`);
-      await new Promise((r) => setTimeout(r, waitMs));
-      continue;
-    }
-
-    if (!response.ok) {
-      throw new Error(`S2 API error: ${response.status} ${response.statusText}`);
-    }
-
-    return response;
-  }
-  throw new Error("S2 API: max retries exceeded");
-}
-
 export async function searchPapers(
   query: SemanticScholarQuery
 ): Promise<ScrapedArticle[]> {
@@ -91,15 +77,15 @@ export async function searchPapers(
     url += `&publicationDateOrYear=${encodeURIComponent(query.publicationDateRange)}`;
   }
 
-  console.log(`  Searching Semantic Scholar: "${query.query}"...`);
+  log.info({ query: query.query }, `Searching Semantic Scholar: "${query.query}"`);
 
-  const response = await fetchWithRetry(url);
+  const response = await resilientFetch(url, { service: "SemanticScholar", timeoutMs: 15_000, retries: 3, circuitBreaker: breaker });
   const data = (await response.json()) as S2SearchResponse;
 
   const articles: ScrapedArticle[] = [];
 
   if (!data.data || data.data.length === 0) {
-    console.log(`  No papers found for "${query.query}"`);
+    log.info({ query: query.query }, `No papers found for "${query.query}"`);
     return articles;
   }
 
@@ -123,7 +109,7 @@ export async function searchPapers(
     });
   }
 
-  console.log(`  Got ${articles.length} papers for "${query.query}"`);
+  log.info({ query: query.query, count: articles.length }, `Got ${articles.length} papers for "${query.query}"`);
   return articles;
 }
 
@@ -133,17 +119,14 @@ export async function searchAllPaperQueries(
   const allArticles: ScrapedArticle[] = [];
 
   for (const query of queries) {
-    try {
-      const articles = await searchPapers(query);
-      allArticles.push(...articles);
-      // Respect rate limit: 100 req / 5 min ≈ 1 req / 3s
-      await new Promise((r) => setTimeout(r, 3000));
-    } catch (error) {
-      console.error(
-        `  Error searching S2 for "${query.query}":`,
-        error instanceof Error ? error.message : error
-      );
+    const result = await safeAsync(() => searchPapers(query));
+    if (result.ok) {
+      allArticles.push(...result.value);
+    } else {
+      log.error({ query: query.query, err: result.error }, `Error searching S2 for "${query.query}"`);
     }
+    // Respect rate limit: 100 req / 5 min ≈ 1 req / 3s
+    await new Promise((r) => setTimeout(r, 3000));
   }
 
   return allArticles;

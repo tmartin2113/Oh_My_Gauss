@@ -3,6 +3,9 @@ import * as path from "path";
 import { DocumentChunk } from "../scraper/chunker.js";
 import { embedText, embedBatch } from "../embeddings/embed.js";
 import type { RetrievedContext, VectorStore } from "./types.js";
+import { createLogger } from "../util/logger.js";
+
+const log = createLogger("vectorstore:local");
 
 interface StoredDocument {
   id: string;
@@ -76,11 +79,11 @@ class LocalVectorStore implements VectorStore {
     // Filter out duplicates
     const newChunks = chunks.filter((c) => !existingIds.has(c.id));
     if (newChunks.length === 0) {
-      console.log("All chunks already exist in store, skipping.");
+      log.info("All chunks already exist in store, skipping.");
       return;
     }
 
-    console.log(`Embedding ${newChunks.length} new chunks (${chunks.length - newChunks.length} duplicates skipped)...`);
+    log.info(`Embedding ${newChunks.length} new chunks (${chunks.length - newChunks.length} duplicates skipped)...`);
     const embeddings = await embedBatch(newChunks.map((c) => c.text));
 
     for (let i = 0; i < newChunks.length; i++) {
@@ -93,7 +96,7 @@ class LocalVectorStore implements VectorStore {
     }
 
     this.save();
-    console.log(`Stored ${newChunks.length} chunks (total: ${store.documents.length})`);
+    log.info(`Stored ${newChunks.length} chunks (total: ${store.documents.length})`);
   }
 
   async queryRelevant(
